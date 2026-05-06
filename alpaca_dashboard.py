@@ -21,12 +21,17 @@ SYMBOLS = ["AAPL", "MSFT", "GOOGL"]
 @st.cache_data(ttl=300)
 def get_rsi_data(symbol):
     df = yf.download(symbol, period="60d", auto_adjust=True, progress=False)
-    df.columns = df.columns.get_level_values(0)
-    close = df["Close"].squeeze()
+    if df.empty:
+        return 50.0, 0.0
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    close = df["Close"].dropna()
+    if len(close) < 15:
+        return 50.0, float(close.iloc[-1]) if len(close) > 0 else 0.0
     delta = close.diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean().replace(0, float("nan"))
-    rsi   = 100 - 100 / (1 + gain / loss)
+    rsi   = (100 - 100 / (1 + gain / loss)).dropna()
     return float(rsi.iloc[-1]), float(close.iloc[-1])
 
 @st.cache_data(ttl=300)
@@ -93,8 +98,9 @@ st.subheader("RSI History")
 selected = st.selectbox("Select stock", SYMBOLS)
 
 df = yf.download(selected, period="60d", auto_adjust=True, progress=False)
-df.columns = df.columns.get_level_values(0)
-close = df["Close"].squeeze()
+if isinstance(df.columns, pd.MultiIndex):
+    df.columns = df.columns.get_level_values(0)
+close = df["Close"].dropna()
 delta = close.diff()
 gain  = delta.clip(lower=0).rolling(14).mean()
 loss  = (-delta.clip(upper=0)).rolling(14).mean().replace(0, float("nan"))
